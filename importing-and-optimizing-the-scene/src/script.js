@@ -3,11 +3,14 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
+import firefliesVertexShader from './shaders/flireflies/vertex.glsl'
+import firefliesFragmentShader from './shaders/flireflies/fragment.glsl'
 
 /**
  * Base
  */
 // Debug
+const debugObject = {}
 const gui = new GUI({
     width: 400
 })
@@ -109,6 +112,46 @@ gltfLoader.load(
 )
 
 /**
+ * Fireflies
+ */
+const firefliesGeometry = new THREE.BufferGeometry()
+const firefliesCount = 60
+const positionArray = new Float32Array(firefliesCount * 3)
+const scaleArray = new Float32Array(firefliesCount)
+
+for(let i = 0; i < firefliesCount; i++)
+{
+    positionArray[i * 3 + 0] = (Math.random() - 0.5) * 8
+    positionArray[i * 3 + 1] = Math.random() * 10
+    positionArray[i * 3 + 2] = (Math.random() - 0.5) * 8
+
+    scaleArray[i] = Math.random()
+}
+
+firefliesGeometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3))
+firefliesGeometry.setAttribute('aScale', new THREE.BufferAttribute(scaleArray, 1))
+
+// Material
+const firefliesMaterial = new THREE.ShaderMaterial({
+    uniforms:
+    {
+        uTime: { value: 0 },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+        uSize: { value: 280 }
+    },
+    vertexShader: firefliesVertexShader,
+    fragmentShader: firefliesFragmentShader,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+})
+
+gui.add(firefliesMaterial.uniforms.uSize, 'value').min(0).max(1000).step(1).name('firefliesSize')
+
+const fireflies = new THREE.Points(firefliesGeometry, firefliesMaterial)
+scene.add(fireflies)
+
+/**
  * Sizes
  */
 const sizes = {
@@ -129,17 +172,67 @@ window.addEventListener('resize', () =>
     // Update renderer
     renderer.setSize(sizes.width, sizes.height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+
+    // Update fireflies
+    firefliesMaterial.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2)
 })
+
+/**
+ * Gradient Background
+ */
+const topColor = '#c7a7d1';
+const bottomColor = '#880c6d';
+
+const gradientMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+        uHeight: { value: sizes.height },
+        topColor: { value: new THREE.Color(topColor) },
+        bottomColor: { value: new THREE.Color(bottomColor) }
+    },
+    vertexShader: `
+        uniform float uHeight;
+
+        void main() {
+            gl_Position = vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform float uHeight;
+        uniform vec3 topColor;
+        uniform vec3 bottomColor;
+
+        void main() {
+            gl_FragColor = vec4(mix(bottomColor, topColor, gl_FragCoord.y / uHeight), 1.0);
+        }
+    `,
+    depthTest: false
+});
+
+const gradientMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), gradientMaterial);
+gradientMesh.renderOrder = -1;
+scene.add(gradientMesh);
+
+// GUI to change the background color
+gui.addColor({ topColor, bottomColor }, 'topColor').onChange((color) => {
+    gradientMaterial.uniforms.topColor.value.set(color);
+});
+gui.addColor({ topColor, bottomColor }, 'bottomColor').onChange((color) => {
+    gradientMaterial.uniforms.bottomColor.value.set(color);
+});
 
 /**
  * Camera
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(45, sizes.width / sizes.height, 0.1, 100)
-camera.position.x = 4
-camera.position.y = 2
-camera.position.z = 4
+camera.position.x = 10
+camera.position.y = 10
+camera.position.z = 10
 scene.add(camera)
+
+gui.add(camera.position, 'x').min(0).max(20).step(0.1)
+gui.add(camera.position, 'y').min(0).max(20).step(0.1)
+gui.add(camera.position, 'z').min(0).max(20).step(0.1)
 
 // Controls
 const controls = new OrbitControls(camera, canvas)
@@ -155,6 +248,14 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
+// debugObject.clearColor = '#804263'
+// renderer.setClearColor(debugObject.clearColor)
+// gui.addColor(debugObject, 'clearColor')
+//     .onChange(() =>
+//     {
+//         renderer.setClearColor(debugObject.clearColor)
+//     })
+
 /**
  * Animate
  */
@@ -163,6 +264,9 @@ const clock = new THREE.Clock()
 const tick = () =>
 {
     const elapsedTime = clock.getElapsedTime()
+
+    // Update material
+    firefliesMaterial.uniforms.uTime.value = elapsedTime
 
     // Update controls
     controls.update()
