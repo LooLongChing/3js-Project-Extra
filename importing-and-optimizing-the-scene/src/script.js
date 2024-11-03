@@ -10,16 +10,16 @@ import firefliesFragmentShader from './shaders/flireflies/fragment.glsl'
  * Base
  */
 // Debug
-const debugObject = {}
-const gui = new GUI({
-    width: 400
-})
+const debugObject = {};
+const active = window.location.hash === '#debug';
+let gui = active ? new GUI({ width: 280 }) : null;
 
 // Canvas
 const canvas = document.querySelector('canvas.webgl')
 
 // Scene
 const scene = new THREE.Scene()
+scene.position.y = -4.45
 
 /**
  * Loaders
@@ -114,19 +114,37 @@ gltfLoader.load(
 /**
  * Fireflies
  */
-const firefliesGeometry = new THREE.BufferGeometry()
-const firefliesCount = 60
-const positionArray = new Float32Array(firefliesCount * 3)
-const scaleArray = new Float32Array(firefliesCount)
+function generateFireflies(firefliesCount) {
+    const positionArray = new Float32Array(firefliesCount * 3);
+    const scaleArray = new Float32Array(firefliesCount);
+    
+    let i = 0;
+    while (i < firefliesCount) {
+        const radius = Math.random() * 7;
 
-for(let i = 0; i < firefliesCount; i++)
-{
-    positionArray[i * 3 + 0] = (Math.random() - 0.5) * 8
-    positionArray[i * 3 + 1] = Math.random() * 10
-    positionArray[i * 3 + 2] = (Math.random() - 0.5) * 8
+        if (radius < 3) {
+            continue; // Skip this iteration if radius is less than 3
+        }
 
-    scaleArray[i] = Math.random()
+        const theta = Math.random() * Math.PI * 2; // Random angle around the y-axis
+        const phi = Math.acos(2 * Math.random() - 1); // Random angle from the y-axis
+
+        positionArray[i * 3 + 0] = radius * Math.sin(phi) * Math.cos(theta); // x
+        positionArray[i * 3 + 1] = radius * Math.cos(phi); // y
+        positionArray[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta); // z
+
+        scaleArray[i] = Math.random();
+
+        i++; // Increment i only when a valid position is set
+    }
+
+    return { positionArray, scaleArray };
 }
+
+const firefliesGeometry = new THREE.BufferGeometry()
+debugObject.firefliesCount = 75
+const firefliesCount = debugObject.firefliesCount
+const { positionArray, scaleArray } = generateFireflies(firefliesCount);
 
 firefliesGeometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3))
 firefliesGeometry.setAttribute('aScale', new THREE.BufferAttribute(scaleArray, 1))
@@ -146,9 +164,25 @@ const firefliesMaterial = new THREE.ShaderMaterial({
     depthWrite: false
 })
 
-gui.add(firefliesMaterial.uniforms.uSize, 'value').min(0).max(1000).step(1).name('firefliesSize')
+if(active)
+{
+    gui.add(debugObject, 'firefliesCount', 0, 1000, 1).name('firefliesCount').onFinishChange(() => {
+        if (fireflies) {
+            scene.remove(fireflies);
+        }
+    
+        const { positionArray, scaleArray } = generateFireflies(debugObject.firefliesCount);
+        firefliesGeometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
+        firefliesGeometry.setAttribute('aScale', new THREE.BufferAttribute(scaleArray, 1));
+    
+        fireflies = new THREE.Points(firefliesGeometry, firefliesMaterial);
+        scene.add(fireflies);
+    });
 
-const fireflies = new THREE.Points(firefliesGeometry, firefliesMaterial)
+    gui.add(firefliesMaterial.uniforms.uSize, 'value').min(0).max(1000).step(1).name('firefliesSize')
+}
+
+let fireflies = new THREE.Points(firefliesGeometry, firefliesMaterial)
 scene.add(fireflies)
 
 /**
@@ -175,13 +209,16 @@ window.addEventListener('resize', () =>
 
     // Update fireflies
     firefliesMaterial.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2)
+
+    // Update gradient background
+    gradientMaterial.uniforms.uHeight.value = sizes.height;
 })
 
 /**
  * Gradient Background
  */
-const topColor = '#c7a7d1';
-const bottomColor = '#880c6d';
+const topColor = '#ffc7e5';
+const bottomColor = '#922f5f';
 
 const gradientMaterial = new THREE.ShaderMaterial({
     uniforms: {
@@ -209,34 +246,44 @@ const gradientMaterial = new THREE.ShaderMaterial({
 });
 
 const gradientMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), gradientMaterial);
+gradientMesh.position.z = -1;
 gradientMesh.renderOrder = -1;
 scene.add(gradientMesh);
 
 // GUI to change the background color
-gui.addColor({ topColor, bottomColor }, 'topColor').onChange((color) => {
-    gradientMaterial.uniforms.topColor.value.set(color);
-});
-gui.addColor({ topColor, bottomColor }, 'bottomColor').onChange((color) => {
-    gradientMaterial.uniforms.bottomColor.value.set(color);
-});
+if(active)
+{
+    gui.addColor({ topColor, bottomColor }, 'topColor').onChange((color) => {
+        gradientMaterial.uniforms.topColor.value.set(color);
+    });
+    gui.addColor({ topColor, bottomColor }, 'bottomColor').onChange((color) => {
+        gradientMaterial.uniforms.bottomColor.value.set(color);
+    });
+}
 
 /**
  * Camera
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(45, sizes.width / sizes.height, 0.1, 100)
-camera.position.x = 10
-camera.position.y = 10
-camera.position.z = 10
+camera.position.x = 6.3
+camera.position.y = 9.1
+camera.position.z = 14.7
 scene.add(camera)
 
-gui.add(camera.position, 'x').min(0).max(20).step(0.1)
-gui.add(camera.position, 'y').min(0).max(20).step(0.1)
-gui.add(camera.position, 'z').min(0).max(20).step(0.1)
+// gui.add(camera.position, 'x').min(0).max(20).step(0.1)
+// gui.add(camera.position, 'y').min(0).max(20).step(0.1)
+// gui.add(camera.position, 'z').min(0).max(20).step(0.1)
 
 // Controls
 const controls = new OrbitControls(camera, canvas)
+controls.autoRotate = true
 controls.enableDamping = true
+controls.enablePan = false
+controls.minDistance = 13
+controls.maxDistance = 30
+
+// gui.add(controls, 'minDistance').min(0).max(100).step(0.01)
 
 /**
  * Renderer
@@ -255,6 +302,26 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 //     {
 //         renderer.setClearColor(debugObject.clearColor)
 //     })
+
+/**
+ * Fog
+ */
+debugObject.fogDensity = 0.02
+debugObject.fogColor = '#922f8a'
+scene.fog = new THREE.FogExp2(debugObject.fogColor, debugObject.fogDensity)
+
+if(active)
+{
+    gui.add(debugObject, 'fogDensity', 0, 0.1, 0.001).
+    onFinishChange(() => {
+        scene.fog = new THREE.FogExp2('#922f5f', debugObject.fogDensity)
+    })
+
+    gui.addColor(debugObject, 'fogColor').
+    onChange((color) => {
+        scene.fog = new THREE.FogExp2(color, debugObject.fogDensity)
+    })
+}
 
 /**
  * Animate
