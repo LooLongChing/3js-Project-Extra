@@ -23,13 +23,13 @@ body
     position: absolute;
     top: 5%;
     left: 5%;
-    padding: 20px;
-    border-radius: 4px;
-    background: black;
-    color: white;
+    padding: 15px;
+    border-radius: 30px;
+    background: rgba(255, 49, 97, 0.205);
+    color: hsl(335, 100%, 35%);
     font-family: Arial, Helvetica, sans-serif;
     text-align: center;
     line-height: 1.3em;
-    font-weight: 100;
-    font-size: 14px;
+    font-weight: 850;
+    font-size: 17px;
 }
